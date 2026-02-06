@@ -9,6 +9,8 @@ import {
   generateRefreshToken,
 } from "../utils/tokenGenerator.js";
 import jwt from "jsonwebtoken";
+import { sendEmail } from "../utils/email.js";
+
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -49,8 +51,8 @@ export const login = async (req, res, next) => {
     if (!existingUser)
       throw new ApiError("user doesnt exist,register first", 404);
     //check password
-    const isPasswordCorrect = await existingUser.comparePassword(password)
-    if(!isPasswordCorrect) throw new ApiError("invalid password",400)
+    const isPasswordCorrect = await existingUser.comparePassword(password);
+    if (!isPasswordCorrect) throw new ApiError("invalid password", 400);
     //create session
     const newSession = await session.create({
       user: existingUser._id,
@@ -215,8 +217,12 @@ export const request_password_reset = async (req, res, next) => {
     await existing_user.save();
 
     //send email
-
-    return apiResponse(res, { otp }, "otp sent on response (DEV)  ", 200);
+    await sendEmail({
+      to: email,
+      subject: "Your OTP Code",
+      htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    });
+    return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }
@@ -268,17 +274,16 @@ export const request_email_verification = async (req, res, next) => {
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     existing_user.emailVerificationOTP = hashedOtp;
-    existing_user.emailVerificationOTPExpires =
-      Date.now() + 10 * 60 * 1000; // 10 min
+    existing_user.emailVerificationOTPExpires = Date.now() + 10 * 60 * 1000; // 10 min
 
     await existing_user.save();
-
-    return apiResponse(
-      res,
-      { otp }, // DEV ONLY
-      "verification otp generated",
-      200
-    );
+    //send email
+    await sendEmail({
+      to: email,
+      subject: "Your OTP Code",
+      htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    });
+    return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }
@@ -287,8 +292,7 @@ export const request_email_verification = async (req, res, next) => {
 export const verify_email = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp)
-      throw new ApiError("email and otp required", 400);
+    if (!email || !otp) throw new ApiError("email and otp required", 400);
 
     const existing_user = await user.findOne({ email });
     if (!existing_user) throw new ApiError("user not found", 404);
