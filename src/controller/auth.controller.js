@@ -11,6 +11,8 @@ import {
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/email.js";
 
+import { logAuditEvent } from "../utils/auditLogs.js";
+
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -25,7 +27,13 @@ export const registerUser = async (req, res, next) => {
       password,
       role,
     });
-
+    await logAuditEvent({
+      userId: newUser._id,
+      action: "REGISTRATION SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
     return apiResponse(
       res,
       {
@@ -48,11 +56,27 @@ export const login = async (req, res, next) => {
     if (!email || !password) throw new ApiError("all fields required", 400);
     const existingUser = await user.findOne({ email });
     // const existingUser = await user.findOne({ email }).select("-password");
-    if (!existingUser)
+    if (!existingUser) {
+      await logAuditEvent({
+        action: "LOGIN_FAILED",
+        success: false,
+        reason: "Invalid credentials || user wasnt found",
+        req,
+      });
       throw new ApiError("user doesnt exist,register first", 404);
+    }
     //check password
     const isPasswordCorrect = await existingUser.comparePassword(password);
-    if (!isPasswordCorrect) throw new ApiError("invalid password", 400);
+    if (!isPasswordCorrect) {
+      await logAuditEvent({
+        userId: existingUser._id,
+        action: "LOGIN_FAILED",
+        success: false,
+        reason: "Invalid credentials || incorrect password",
+        req,
+      });
+      throw new ApiError("invalid password", 400);
+    }
     //create session
     const newSession = await session.create({
       user: existingUser._id,
@@ -92,6 +116,13 @@ export const login = async (req, res, next) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
     //return response
+    await logAuditEvent({
+      userId: existingUser._id,
+      action: "LOGIN_SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
     return apiResponse(
       res,
       { currentRefreshToken, accessToken },
@@ -116,6 +147,15 @@ export const logout = async (req, res, next) => {
 
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
+
+    await logAuditEvent({
+      userId: req.USER._id,
+      action: "LOGOUT_SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
+
     return apiResponse(res, null, "Logged out", 200);
   } catch (err) {
     next(err);
@@ -130,7 +170,7 @@ export const refresh = async (req, res, next) => {
     if (!token)
       throw new ApiError("refesh token doesnt exist || line 124", 400);
     const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
-
+    const existing_session = await session.findById(decoded?.sessionID);
     //checking if refresh token is valid
     const existing_refreshToken = await refreshToken.findOne({
       token,
@@ -142,6 +182,13 @@ export const refresh = async (req, res, next) => {
         { session: decoded.sessionID },
         { valid: false },
       );
+      await logAuditEvent({
+        userId: existing_session?.user,
+        action: "REFRESH TOKEN REUSE DETECTED",
+        success: false,
+        reason: "probable theft",
+        req,
+      });
       throw new ApiError(
         "Refresh token reuse detected. Session terminated.",
         401,
@@ -149,9 +196,17 @@ export const refresh = async (req, res, next) => {
     }
 
     //checking if session linked through token is valid
-    const existing_session = await session.findById(decoded?.sessionID);
-    if (!existing_session || existing_session.valid === false)
+
+    if (!existing_session || existing_session.valid === false) {
+      await logAuditEvent({
+        userId: existing_session?.user,
+        action: "REFRESHING TOKEN FAILED",
+        success: false,
+        reason: "invalid session",
+        req,
+      });
       throw new ApiError("SESSION EXPIRED", 400);
+    }
     const existing_user = await user.findById(existing_session.user);
 
     //since both exists now we rotate
@@ -184,6 +239,14 @@ export const refresh = async (req, res, next) => {
       secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
+    await logAuditEvent({
+      userId: existing_user._id,
+      action: "REFRESHING TOKEN SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
     return apiResponse(
       res,
       { newRefreshToken, newAccessToken },
@@ -201,8 +264,15 @@ export const request_password_reset = async (req, res, next) => {
     if (!email) throw new ApiError("EMAIL REQUIRED", 400);
 
     const existing_user = await user.findOne({ email });
-    if (!existing_user) throw new ApiError("user doesnt exist", 400);
-
+    if (!existing_user) {
+      await logAuditEvent({
+        action: "PASSWORD_RESET_REQUEST_FAILED",
+        success: false,
+        reason: "email not found",
+        req,
+      });
+      throw new ApiError("user doesnt exist", 400);
+    }
     //after checks generate 6 digit otp
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     //example
@@ -221,6 +291,13 @@ export const request_password_reset = async (req, res, next) => {
       to: email,
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    });
+    await logAuditEvent({
+      userId: existing_user._id,
+      action: "REQUEST FOR PASSWORD RESET || SUCCESS",
+      success: true,
+      reason: "",
+      req,
     });
     return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
@@ -283,6 +360,14 @@ export const request_email_verification = async (req, res, next) => {
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     });
+
+    await logAuditEvent({
+      userId: existing_user._id,
+      action: "EMAIL_VERIFICATION_REQUEST_SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
     return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
@@ -313,7 +398,12 @@ export const verify_email = async (req, res, next) => {
     existing_user.emailVerificationOTPExpires = undefined;
 
     await existing_user.save();
-
+    await logAuditEvent({
+      userId: existing_user._id,
+      action: "EMAIL_VERIFIED",
+      success: true,
+      req,
+    });
     return apiResponse(res, {}, "email verified successfully", 200);
   } catch (err) {
     next(err);
