@@ -12,7 +12,9 @@ import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/email.js";
 
 import { logAuditEvent } from "../utils/auditLogs.js";
+import speakeasy from "speakeasy";
 
+import { run2FA } from "../utils/2FA.js";
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -26,6 +28,8 @@ export const registerUser = async (req, res, next) => {
       email,
       password,
       role,
+      twoFASecret: speakeasy.generateSecret({ length: 20 }).base32, // auto-generate
+      twoFAEnabled: true,
     });
     await logAuditEvent({
       userId: newUser._id,
@@ -52,7 +56,7 @@ export const registerUser = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password,totp  } = req.body;
     if (!email || !password) throw new ApiError("all fields required", 400);
     const existingUser = await user.findOne({ email });
     // const existingUser = await user.findOne({ email }).select("-password");
@@ -77,6 +81,11 @@ export const login = async (req, res, next) => {
       });
       throw new ApiError("invalid password", 400);
     }
+    //2FA
+    await run2FA({ user: existingUser, token: totp, req });
+    //req for IP and user-agent
+
+
     //create session
     const newSession = await session.create({
       user: existingUser._id,
@@ -405,6 +414,47 @@ export const verify_email = async (req, res, next) => {
       req,
     });
     return apiResponse(res, {}, "email verified successfully", 200);
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+export const invalidateAllSessions = async (req, res, next) => {
+  try {
+    const userId = req.USER.userID;
+    
+    // Find all valid sessions of the user
+    const userSessions = await session.find({ user: userId, valid: true }).select("_id");
+  
+    const sessionIds = userSessions.map((s) => s._id);
+
+    if (sessionIds.length === 0) {
+      return apiResponse(res, null, "No active sessions to invalidate", 200);
+    }
+
+    // Invalidate all sessions
+    await session.updateMany(
+      { _id: { $in: sessionIds } },
+      { valid: false }
+    );
+
+    // Invalidate all refresh tokens linked to those sessions
+    await refreshToken.updateMany(
+      { session: { $in: sessionIds }, valid: true },
+      { valid: false }
+    );
+
+    // Audit log
+    await logAuditEvent({
+      userId,
+      action: "INVALIDATE_ALL_SESSIONS",
+      success: true,
+      reason: "",
+      req,
+    });
+
+    return apiResponse(res, null, "All sessions invalidated successfully", 200);
   } catch (err) {
     next(err);
   }

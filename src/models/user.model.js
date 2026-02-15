@@ -40,6 +40,13 @@ const userSchema = mongoose.Schema(
     emailVerificationOTPExpires: {
       type: Date,
     },
+    twoFASecret: { 
+      type: String 
+    },
+    twoFAEnabled: 
+    { type: Boolean,
+     default: true  // since we auto-generate
+    },
   },
   {
     timestamps: true,
