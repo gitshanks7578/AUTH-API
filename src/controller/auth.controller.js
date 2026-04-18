@@ -402,7 +402,7 @@ export const request_email_verification = async (req, res, next) => {
 
     await existing_user.save();
     //send email
-    await sendEmail({
+    const result = await sendEmail({
       to: email,
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,

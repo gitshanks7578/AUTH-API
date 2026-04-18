@@ -1,9 +1,10 @@
 import speakeasy from "speakeasy";
 import { logAuditEvent } from "./auditLogs.js";
 import ApiError from "./apiError.js";
+import { apiResponse } from "./apiResponse.js";
 export const run2FA = async ({ user, token, req }) => {
   if (!user.twoFAEnabled) {
-    throw new ApiError("enable your 2FA first", 500);
+    throw new ApiError("Enable 2FA first", 400);
   }; // skip if 2FA not enabled
 
   if (!token) {
