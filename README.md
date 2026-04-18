@@ -4,7 +4,7 @@
 **AUTH API – Secure Authentication Backend (Node.js + Express + MongoDB)**
 
 ## Project Overview  
-A production-style authentication backend implementing secure user authentication, session management, and token-based authorization. It supports JWT access/refresh tokens, refresh token rotation, optional TOTP-based 2FA, email verification, password reset via OTP, session invalidation, and audit logging for authentication events.
+A production-style authentication backend implementing secure user authentication, session management, and token-based authorization. It supports JWT access/refresh tokens, refresh token rotation, TOTP-based 2FA, email verification, password reset via OTP, session invalidation, and audit logging for authentication events.
 
 Designed as an API-first backend with security-focused authentication flows.
 
