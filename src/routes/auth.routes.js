@@ -1,11 +1,13 @@
 import express from "express"
-import { login, registerUser,logout,refresh, request_password_reset, reset_password, request_email_verification, verify_email,invalidateAllSessions } from "../controller/auth.controller.js"
+import { login, registerUser,logout,refresh, request_password_reset, reset_password, request_email_verification, verify_email,invalidateAllSessions,verify2FA} from "../controller/auth.controller.js"
 import { verifyJWT } from "../middlewares/verifyJWT.js"
 import { commonRateLimiter } from "../middlewares/rateLimit.js"
 const authrouter = express.Router()
 
 authrouter.post("/register",registerUser)
+// authrouter.post("/totp",getTotp)
 // authrouter.post("/login",commonRateLimiter(5,15),login)
+authrouter.post("/verify2FA",verify2FA)
 authrouter.post("/login",login)
 authrouter.post("/logout",verifyJWT,logout)
 authrouter.post("/refresh",refresh)

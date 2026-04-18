@@ -15,6 +15,7 @@ import { logAuditEvent } from "../utils/auditLogs.js";
 import speakeasy from "speakeasy";
 
 import { run2FA } from "../utils/2FA.js";
+import { ucs2 } from "punycode";
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -29,7 +30,7 @@ export const registerUser = async (req, res, next) => {
       password,
       role,
       twoFASecret: speakeasy.generateSecret({ length: 20 }).base32, // auto-generate
-      twoFAEnabled: true,
+      twoFAEnabled: false,
     });
     await logAuditEvent({
       userId: newUser._id,
@@ -45,6 +46,7 @@ export const registerUser = async (req, res, next) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        twoFA_secret: newUser.twoFASecret,
       },
       "user registered successfully",
       201,
@@ -53,6 +55,40 @@ export const registerUser = async (req, res, next) => {
     next(err);
   }
 };
+
+export const verify2FA = async(req,res,next)=>{
+  try {
+    const {email,token} = req.body
+     if (!email || !token) {
+      throw new ApiError("email and token required", 400);
+    }
+
+    const existingUser = await user.findOne({ email });
+    if (!existingUser) {
+      throw new ApiError("user not found", 404);
+    }
+
+      const isValid = speakeasy.totp.verify({
+      secret: existingUser.twoFASecret,
+      encoding: "base32",
+      token,
+      window: 1,
+    });
+
+    if (!isValid) {
+      throw new ApiError("invalid TOTP", 400);
+    }
+
+    existingUser.twoFAEnabled = true;
+    await existingUser.save();
+
+    return apiResponse(res, {}, "2FA enabled successfully", 200);
+
+  } catch (err) {
+    next(err)
+  }
+}
+
 
 export const login = async (req, res, next) => {
   try {
@@ -296,11 +332,12 @@ export const request_password_reset = async (req, res, next) => {
     await existing_user.save();
 
     //send email
-    await sendEmail({
+    const result = await sendEmail({
       to: email,
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     });
+    const preview_link = result.preview_link
     await logAuditEvent({
       userId: existing_user._id,
       action: "REQUEST FOR PASSWORD RESET || SUCCESS",
@@ -308,7 +345,8 @@ export const request_password_reset = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, { otp,preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
+    // res.status(200).json({message : `${otp} , ${preview_link}`,success:true})
   } catch (err) {
     next(err);
   }
@@ -369,7 +407,7 @@ export const request_email_verification = async (req, res, next) => {
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     });
-
+const preview_link = result.preview_link
     await logAuditEvent({
       userId: existing_user._id,
       action: "EMAIL_VERIFICATION_REQUEST_SUCCESS",
@@ -377,7 +415,7 @@ export const request_email_verification = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { otp }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, { otp,preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }

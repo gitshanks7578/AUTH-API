@@ -45,7 +45,7 @@ const userSchema = mongoose.Schema(
     },
     twoFAEnabled: 
     { type: Boolean,
-     default: true  // since we auto-generate
+     default: false  // since we auto-generate
     },
   },
   {

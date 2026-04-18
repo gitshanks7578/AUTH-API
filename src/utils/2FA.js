@@ -2,7 +2,9 @@ import speakeasy from "speakeasy";
 import { logAuditEvent } from "./auditLogs.js";
 import ApiError from "./apiError.js";
 export const run2FA = async ({ user, token, req }) => {
-  if (!user.twoFAEnabled) return; // skip if 2FA not enabled
+  if (!user.twoFAEnabled) {
+    throw new ApiError("enable your 2FA first", 500);
+  }; // skip if 2FA not enabled
 
   if (!token) {
     await logAuditEvent({
@@ -15,10 +17,10 @@ export const run2FA = async ({ user, token, req }) => {
     throw new Error("2FA token required");
   }
 //   throw new ApiError(`${token} and ${user.twoFASecret}`)
-console.log(
-  "Backend expects OTP:",
-  speakeasy.totp({ secret: user.twoFASecret, encoding: "base32" })
-);
+// console.log(
+//   "Backend expects OTP:",
+//   speakeasy.totp({ secret: user.twoFASecret, encoding: "base32" })
+// );
   const isValid = speakeasy.totp.verify({
     secret: user.twoFASecret,
     encoding: "base32",

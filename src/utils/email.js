@@ -113,6 +113,8 @@ async function initEthereal() {
   console.log("Ethereal Email Ready");
   console.log("User:", testAccount.user);
   console.log("Pass:", testAccount.pass);
+
+
 }
 
 export async function sendEmail({ to, subject, htmlContent }) {
@@ -128,8 +130,9 @@ export async function sendEmail({ to, subject, htmlContent }) {
 
     console.log("Email sent (Ethereal)");
     console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
-
-    return info;
+    const preview_link = nodemailer.getTestMessageUrl(info);
+    
+    return {info,preview_link};
   } catch (error) {
     console.error("Ethereal email error:", error);
     throw new Error("Failed to send email");
