@@ -4,7 +4,7 @@ export const generateAccessToken = ({sessionID,userID,role}) => {
     return jwt.sign(
         {sessionID,userID,role},
         process.env.ACCESS_TOKEN_SECRET,
-        {expiresIn:"15m"}
+        {expiresIn:"7d"}
     )
 }
 
