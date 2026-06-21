@@ -25,7 +25,7 @@ const sessionSchema = mongoose.Schema({
 
 sessionSchema.pre("save",function(next){
     this.updatedAt = Date.now()
-    next()
+    // next()
 })
 
 export const session = mongoose.model("session",sessionSchema)
