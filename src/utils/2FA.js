@@ -1,12 +1,8 @@
 import speakeasy from "speakeasy";
 import { logAuditEvent } from "./auditLogs.js";
 import ApiError from "./apiError.js";
-import { apiResponse } from "./apiResponse.js";
 export const run2FA = async ({ user, token, req }) => {
-  if (!user.twoFAEnabled) {
-    throw new ApiError("Enable 2FA first", 400);
-  }; // skip if 2FA not enabled
-
+  if (!user.twoFAEnabled) return;
   if (!token) {
     await logAuditEvent({
       userId: user._id,
@@ -15,7 +11,7 @@ export const run2FA = async ({ user, token, req }) => {
       reason: "2FA token missing",
       req,
     });
-    throw new Error("2FA token required");
+    throw new ApiError("2FA token required", 400);
   }
 //   throw new ApiError(`${token} and ${user.twoFASecret}`)
 // console.log(
@@ -28,7 +24,6 @@ export const run2FA = async ({ user, token, req }) => {
     token,
     window: 2, // ±30s tolerance
   });
-  console.log(isValid)
 //   throw new ApiError(`STOP`)
   if (!isValid) {
     await logAuditEvent({
@@ -38,7 +33,7 @@ export const run2FA = async ({ user, token, req }) => {
       reason: "Invalid 2FA code",
       req,
     });
-    throw new Error("Invalid 2FA code");
+    throw new ApiError("Invalid 2FA code", 400);
   }
 
   await logAuditEvent({

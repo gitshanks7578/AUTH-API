@@ -17,7 +17,6 @@ const userSchema = mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
     },
     role: {
       type: String,
@@ -40,12 +39,24 @@ const userSchema = mongoose.Schema(
     emailVerificationOTPExpires: {
       type: Date,
     },
-    twoFASecret: { 
-      type: String 
+    twoFASecret: {
+      type: String
     },
-    twoFAEnabled: 
-    { type: Boolean,
-     default: false  // since we auto-generate
+    twoFAEnabled:
+    {
+      type: Boolean,
+      default: false  // since we auto-generate
+    },
+    googleId: {
+      type: String,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+    },
+    avatar: {
+      type: String,
     },
   },
   {
@@ -54,10 +65,12 @@ const userSchema = mongoose.Schema(
 );
 
 userSchema.pre("save", async function () {
+   if (!this.password) return;
   if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 userSchema.methods.comparePassword = async function (userPassword) {
+   if (!this.password) return false;
   return await bcrypt.compare(userPassword, this.password);
 };
 

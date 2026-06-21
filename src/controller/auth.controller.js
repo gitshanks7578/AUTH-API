@@ -15,7 +15,6 @@ import { logAuditEvent } from "../utils/auditLogs.js";
 import speakeasy from "speakeasy";
 
 import { run2FA } from "../utils/2FA.js";
-import { ucs2 } from "punycode";
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -56,10 +55,22 @@ export const registerUser = async (req, res, next) => {
   }
 };
 
-export const verify2FA = async(req,res,next)=>{
+export const getTwoFASecret = async (req, res, next) => {
   try {
-    const {email,token} = req.body
-     if (!email || !token) {
+    const existing_user = await user.findById(req.USER.userID)
+    if (!existing_user) {
+      throw new ApiError("user not found", 404)
+    }
+    return apiResponse(res, { twofa_secret: existing_user.twoFASecret }, "secret provided successfully", 200)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const verify2FA = async (req, res, next) => {
+  try {
+    const { email, token } = req.body
+    if (!email || !token) {
       throw new ApiError("email and token required", 400);
     }
 
@@ -68,7 +79,7 @@ export const verify2FA = async(req,res,next)=>{
       throw new ApiError("user not found", 404);
     }
 
-      const isValid = speakeasy.totp.verify({
+    const isValid = speakeasy.totp.verify({
       secret: existingUser.twoFASecret,
       encoding: "base32",
       token,
@@ -92,7 +103,7 @@ export const verify2FA = async(req,res,next)=>{
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password,totp  } = req.body;
+    const { email, password, totp } = req.body;
     if (!email || !password) throw new ApiError("all fields required", 400);
     const existingUser = await user.findOne({ email });
     // const existingUser = await user.findOne({ email }).select("-password");
@@ -106,6 +117,9 @@ export const login = async (req, res, next) => {
       throw new ApiError("user doesnt exist,register first", 404);
     }
     //check password
+    if(existingUser.authProvider === "google"){
+      throw new ApiError("please sign in via google",400)
+    }
     const isPasswordCorrect = await existingUser.comparePassword(password);
     if (!isPasswordCorrect) {
       await logAuditEvent({
@@ -194,7 +208,7 @@ export const logout = async (req, res, next) => {
     res.clearCookie("refreshToken");
 
     await logAuditEvent({
-      userId: req.USER._id,
+      userId: req.USER.userID,
       action: "LOGOUT_SUCCESS",
       success: true,
       reason: "",
@@ -213,7 +227,7 @@ export const refresh = async (req, res, next) => {
       req?.cookies.refreshToken ||
       req.header("authorization")?.replace("Bearer ", "");
     if (!token)
-      throw new ApiError("refesh token doesnt exist || line 124", 400);
+      throw new ApiError("refesh token doesnt exist || line 230", 400);
     const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
     const existing_session = await session.findById(decoded?.sessionID);
     //checking if refresh token is valid
@@ -253,6 +267,14 @@ export const refresh = async (req, res, next) => {
       throw new ApiError("SESSION EXPIRED", 400);
     }
     const existing_user = await user.findById(existing_session.user);
+    if (!existing_user) {
+      await session.findByIdAndUpdate(decoded.sessionID, { valid: false });
+      await refreshToken.updateMany(
+        { session: decoded.sessionID },
+        { valid: false },
+      );
+      throw new ApiError("user linked to session no longer exists", 401);
+    }
 
     //since both exists now we rotate
     existing_refreshToken.valid = false;
@@ -345,7 +367,7 @@ export const request_password_reset = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { otp,preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, { otp, preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
     // res.status(200).json({message : `${otp} , ${preview_link}`,success:true})
   } catch (err) {
     next(err);
@@ -407,7 +429,7 @@ export const request_email_verification = async (req, res, next) => {
       subject: "Your OTP Code",
       htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     });
-const preview_link = result.preview_link
+    const preview_link = result.preview_link
     await logAuditEvent({
       userId: existing_user._id,
       action: "EMAIL_VERIFICATION_REQUEST_SUCCESS",
@@ -415,7 +437,7 @@ const preview_link = result.preview_link
       reason: "",
       req,
     });
-    return apiResponse(res, { otp,preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, { otp, preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }
@@ -461,10 +483,10 @@ export const verify_email = async (req, res, next) => {
 export const invalidateAllSessions = async (req, res, next) => {
   try {
     const userId = req.USER.userID;
-    
+
     // Find all valid sessions of the user
     const userSessions = await session.find({ user: userId, valid: true }).select("_id");
-  
+
     const sessionIds = userSessions.map((s) => s._id);
 
     if (sessionIds.length === 0) {
@@ -497,3 +519,83 @@ export const invalidateAllSessions = async (req, res, next) => {
     next(err);
   }
 };
+
+export const googleCallbackController = async (req, res, next) => {
+  try {
+    const email = req.user.emails[0].value;
+    const name = req.user.displayName;
+const googleId = req.user.id;
+const avatar = req.user.photos?.[0]?.value;
+
+    let existingUser =
+      await user.findOne({ email });
+
+    if (!existingUser) {
+      existingUser = await user.create({
+        name,
+        email,
+        googleId,
+        authProvider: "google",
+        avatar,
+        isEmailVerified: true,
+        twoFASecret: speakeasy.generateSecret({ length: 20 }).base32,
+        twoFAEnabled: false,
+      });
+    }
+     //create session
+    const newSession = await session.create({
+      user: existingUser._id,
+      userAgent: req.headers["user-agent"],
+      valid: true,
+    });
+
+    //generate tokens
+    const accessToken = generateAccessToken({
+      sessionID: newSession._id,
+      userID: existingUser._id,
+      role: existingUser.role,
+    });
+    const currentRefreshToken = generateRefreshToken({
+      sessionID: newSession._id,
+    });
+
+    //create refreshtoken document
+    const newRefreshToken = await refreshToken.create({
+      session: newSession._id,
+      token: currentRefreshToken,
+      valid: true,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    // set cookies
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
+    res.cookie("refreshToken", currentRefreshToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    //return response
+    await logAuditEvent({
+      userId: existingUser._id,
+      action: "LOGIN_SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
+    return apiResponse(
+      res,
+      { currentRefreshToken, accessToken },
+      "Login successful",
+      200,
+    );
+    
+  } catch (error) {
+    next(error)
+  }
+}
