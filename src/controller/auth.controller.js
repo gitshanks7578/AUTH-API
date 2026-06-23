@@ -9,12 +9,15 @@ import {
   generateRefreshToken,
 } from "../utils/tokenGenerator.js";
 import jwt from "jsonwebtoken";
-import { sendEmail } from "../utils/email.js";
 
 import { logAuditEvent } from "../utils/auditLogs.js";
 import speakeasy from "speakeasy";
 
 import { run2FA } from "../utils/2FA.js";
+
+
+import { sendMailForEmail,sendMailForPassword } from "../utils/resend_email.js";
+
 export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -354,12 +357,16 @@ export const request_password_reset = async (req, res, next) => {
     await existing_user.save();
 
     //send email
-    const result = await sendEmail({
-      to: email,
-      subject: "Your OTP Code",
-      htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
-    const preview_link = result.preview_link
+    // const result = await sendEmail({
+    //   to: email,
+    //   subject: "Your OTP Code",
+    //   htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    // });
+    const mailed = await sendMailForPassword(email,otp)
+    console.log(mailed)
+    if(!mailed) throw new ApiError("email sender failed",500)
+    
+    // const preview_link = result.preview_link
     await logAuditEvent({
       userId: existing_user._id,
       action: "REQUEST FOR PASSWORD RESET || SUCCESS",
@@ -367,7 +374,7 @@ export const request_password_reset = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { otp, preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, {}, "verification otp generated", 200); //DEV ONLY OTP RES
     // res.status(200).json({message : `${otp} , ${preview_link}`,success:true})
   } catch (err) {
     next(err);
@@ -424,12 +431,10 @@ export const request_email_verification = async (req, res, next) => {
 
     await existing_user.save();
     //send email
-    const result = await sendEmail({
-      to: email,
-      subject: "Your OTP Code",
-      htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
-    const preview_link = result.preview_link
+  const mailed = await sendMailForEmail(email,otp)
+    console.log(mailed)
+    if(!mailed) throw new ApiError("email sender failed",500)
+    
     await logAuditEvent({
       userId: existing_user._id,
       action: "EMAIL_VERIFICATION_REQUEST_SUCCESS",
@@ -437,7 +442,7 @@ export const request_email_verification = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { otp, preview_link }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, { }, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }
