@@ -343,6 +343,10 @@ export const request_password_reset = async (req, res, next) => {
       });
       throw new ApiError("user doesnt exist", 400);
     }
+
+    if(existing_user.authProvider === "google") {
+      throw new ApiError("google auth provider | cant change password",400)
+    }
     //after checks generate 6 digit otp
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     //example
