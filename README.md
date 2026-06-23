@@ -2,6 +2,14 @@
 
 A production-style authentication backend built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
 
+![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Express.js](https://img.shields.io/badge/Express.js-black?style=for-the-badge&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+![Passport](https://img.shields.io/badge/OAuth_Passport-2C3E50?style=for-the-badge)
+![2FA](https://img.shields.io/badge/2FA-TOTP-orange?style=for-the-badge)
+![Security](https://img.shields.io/badge/Security-Implemented-red?style=for-the-badge)
+
 This system implements modern authentication patterns including **session-based JWT management, refresh token rotation, Google OAuth, two-factor authentication (2FA), email verification, password recovery, and audit logging**.
 
 It is designed to reflect real-world backend security architecture rather than a basic login demo.
@@ -24,7 +32,7 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 ### Session & Token Security
 
 * Session tracking for every login
-* Refresh token rotation on every use
+* Refresh token rotation
 * Refresh token reuse detection (token theft protection)
 * Global logout via session invalidation
 * Multi-session support per user
@@ -44,7 +52,7 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 ### Account Recovery
 
 * Password reset via OTP (hashed storage)
-* Email verification via OTP
+* Email verification via OTP 
 * Time-limited OTP validation
 
 ### Security & Monitoring
@@ -142,7 +150,7 @@ REFRESH_TOKEN_SECRET=your_refresh_token_secret
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=your_callback_url
-
+RESEND_API_KEY=your_api_key
 NODE_ENV=development
 ```
 
