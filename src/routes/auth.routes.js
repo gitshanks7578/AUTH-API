@@ -14,7 +14,7 @@ authrouter.post("/verify2FA",verifyJWT,verify2FA)
 authrouter.post("/logout",verifyJWT,logout)
 authrouter.post("/refresh",refresh)
 
-authrouter.post("/password_reset",commonRateLimiter(5,15),request_password_reset)
+authrouter.post("/password_reset",request_password_reset)
 authrouter.post("/reset-password",reset_password)
 
 authrouter.post("/invalidate-all", verifyJWT, invalidateAllSessions);
