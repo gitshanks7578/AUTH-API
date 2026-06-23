@@ -1,95 +1,154 @@
 # Auth API
 
-A secure authentication API built with **Node.js**, **Express**, **MongoDB**, and **JWT**.  
-It supports normal email-password login, Google OAuth, refresh token rotation, 2FA, password reset, email verification, session invalidation, rate limiting, and audit logs.
+A production-style authentication backend built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
 
-This project is designed like a real backend service, not just a basic login demo.
+This system implements modern authentication patterns including **session-based JWT management, refresh token rotation, Google OAuth, two-factor authentication (2FA), email verification, password recovery, and audit logging**.
 
-## What It Does
+It is designed to reflect real-world backend security architecture rather than a basic login demo.
 
-- Registers users with hashed passwords using `bcrypt`
-- Logs users in with short-lived access tokens and long-lived refresh tokens
-- Stores refresh tokens in MongoDB and rotates them on every refresh
-- Detects refresh token reuse and invalidates the session
-- Supports logout and invalidate-all-sessions flow
-- Adds optional TOTP-based 2FA using `speakeasy`
-- Sends OTP emails through Ethereal using `nodemailer`
-- Supports Google OAuth login with `passport-google-oauth20`
-- Tracks important auth events with immutable audit logs
-- Protects sensitive routes with JWT middleware
-- Adds rate limiting for OTP and verification routes
+api link : https://auth-api-yncw.onrender.com
+
+oAuth test link : https://authapi-oauth-test.onrender.com
+
+---
+
+## Key Features
+
+### Authentication
+
+* Email/password registration and login
+* Secure password hashing using `bcrypt`
+* JWT-based authentication (access + refresh tokens)
+* HTTP-only cookie-based token storage
+
+### Session & Token Security
+
+* Session tracking for every login
+* Refresh token rotation on every use
+* Refresh token reuse detection (token theft protection)
+* Global logout via session invalidation
+* Multi-session support per user
+
+### OAuth
+
+* Google OAuth 2.0 login using `passport-google-oauth20`
+* Automatic user creation for new Google accounts
+* Seamless integration with existing JWT/session system
+
+### Two-Factor Authentication (2FA)
+
+* TOTP-based authentication using `speakeasy`
+* Optional per-user activation
+* Secure secret generation and verification
+
+### Account Recovery
+
+* Password reset via OTP (hashed storage)
+* Email verification via OTP
+* Time-limited OTP validation
+
+### Security & Monitoring
+
+* Rate limiting for sensitive endpoints
+* Structured audit logging for all auth events
+* IP address and user-agent tracking
+* Protection against invalid session reuse
+
+---
 
 ## Tech Stack
 
-- **Runtime:** Node.js
-- **Framework:** Express.js
-- **Database:** MongoDB with Mongoose
-- **Authentication:** JWT, cookies, sessions
-- **Security:** bcrypt, refresh token rotation, 2FA, rate limiting
-- **OAuth:** Google OAuth 2.0 with Passport
-- **Email:** Nodemailer with Ethereal test SMTP
+* **Runtime:** Node.js
+* **Framework:** Express.js
+* **Database:** MongoDB + Mongoose
+* **Authentication:** JWT, Sessions, Cookies
+* **OAuth:** Google OAuth 2.0 (Passport.js)
+* **Security:** bcrypt, refresh token rotation, TOTP (2FA), rate limiting
+* **Email Service:** Nodemailer (Ethereal for testing)
 
-## Folder Structure
+---
+
+## Project Structure
 
 ```txt
 src/
-  config/        Google OAuth passport strategy
+  config/        Passport Google OAuth strategy
   controller/    Authentication business logic
-  db/            MongoDB connection
-  middlewares/   JWT verification, errors, rate limiting
-  models/        User, session, refresh token, audit log schemas
-  routes/        Auth routes
-  utils/         Tokens, email, API response, audit logging, 2FA
+  db/            MongoDB connection setup
+  middlewares/   JWT auth, error handling, rate limiting
+  models/        User, Session, RefreshToken, AuditLog schemas
+  routes/        Auth route definitions
+  utils/         Token generation, email service, 2FA, audit logger
 ```
 
-## Main API Routes
+---
+
+## API Endpoints
 
 Base URL:
 
-```txt
+```
 /api/v1/auth
 ```
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| POST | `/register` | Create a new user |
-| POST | `/login` | Login with email and password |
-| POST | `/verify2FA` | Enable 2FA after verifying TOTP |
-| POST | `/get2fasecret` | Get 2FA secret for logged-in user |
-| POST | `/logout` | Logout current session |
-| POST | `/refresh` | Rotate refresh token and issue new tokens |
-| POST | `/invalidate-all` | Logout user from all active sessions |
-| POST | `/password_reset` | Request password reset OTP |
-| POST | `/reset-password` | Reset password using OTP |
-| POST | `/request_verify` | Request email verification OTP |
-| POST | `/verify-email` | Verify email using OTP |
-| GET | `/google` | Start Google OAuth login |
-| GET | `/google/callback` | Google OAuth callback |
+| Method | Endpoint           | Description                               |
+| ------ | ------------------ | ----------------------------------------- |
+| POST   | `/register`        | Create a new user account                 |
+| POST   | `/login`           | Login with email and password             |
+| POST   | `/verify2FA`       | Enable and verify TOTP-based 2FA          |
+| POST   | `/get2fasecret`    | Retrieve 2FA secret for setup             |
+| POST   | `/logout`          | Logout current session                    |
+| POST   | `/refresh`         | Rotate refresh token and issue new tokens |
+| POST   | `/invalidate-all`  | Logout from all active sessions           |
+| POST   | `/password_reset`  | Request password reset OTP                |
+| POST   | `/reset-password`  | Reset password using OTP                  |
+| POST   | `/request_verify`  | Request email verification OTP            |
+| POST   | `/verify-email`    | Verify email using OTP                    |
+| GET    | `/google`          | Initiate Google OAuth login               |
+| GET    | `/google/callback` | Google OAuth callback handler             |
 
-## Security Highlights
+---
 
-The API uses a session-backed JWT flow. Access tokens expire quickly, while refresh tokens are persisted and rotated. If an old refresh token is reused, the API treats it as possible token theft and invalidates the session.
+## Security Architecture
 
-Passwords are never stored directly. They are hashed before saving. OTPs for password reset and email verification are also hashed before being stored.
+This system follows a **session-backed JWT model**:
 
-Audit logging records successful and failed authentication events with IP address and user agent. This makes the system easier to monitor and debug.
+* Access tokens are short-lived
+* Refresh tokens are stored in MongoDB and rotated on every use
+* Each login creates a unique session record
+* Token reuse detection immediately invalidates compromised sessions
+
+### Protection Mechanisms
+
+* Passwords are hashed before storage
+* OTPs are hashed before saving in DB
+* Refresh token reuse triggers session termination
+* Audit logs track all authentication events
+* Sensitive routes are rate-limited
+
+---
 
 ## Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file:
 
 ```env
 PORT=8000
-MONGODB_URI=your_mongodb_connection_string
+MONGODB_URI=your_mongodb_uri
+
 ACCESS_TOKEN_SECRET=your_access_token_secret
 REFRESH_TOKEN_SECRET=your_refresh_token_secret
+
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=your callback link
+GOOGLE_CALLBACK_URL=your_callback_url
+
 NODE_ENV=development
 ```
 
-## Run Locally
+---
+
+## Running Locally
 
 Install dependencies:
 
@@ -109,7 +168,16 @@ Start production server:
 npm start
 ```
 
-## Why This Project Stands Out
+---
 
-This API covers authentication the way production systems think about it: sessions, token rotation, account recovery, 2FA, OAuth, rate limits, and audit logs. It shows understanding of both developer experience and security trade-offs, while keeping the code modular and easy to extend.
+## Design Philosophy
 
+This project is built around real-world backend authentication principles:
+
+* Stateless authentication with controlled session tracking
+* Defense against token theft via reuse detection
+* Clear separation between identity (OAuth/local) and authorization (JWT/session)
+* Secure OTP, token, and recovery flows
+* Modular architecture designed for scalability
+
+---

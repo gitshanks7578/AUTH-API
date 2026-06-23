@@ -542,6 +542,8 @@ const avatar = req.user.photos?.[0]?.value;
         twoFAEnabled: false,
       });
     }
+
+    await run2FA({ user: existingUser, token: totp, req });
      //create session
     const newSession = await session.create({
       user: existingUser._id,

@@ -6,20 +6,22 @@ import passport from "../config/passport.js"
 
 const authrouter = express.Router()
 
-authrouter.post("/register",registerUser)
+authrouter.post("/register",commonRateLimiter(5,15),registerUser)
 // authrouter.post("/totp",getTotp)
 // authrouter.post("/login",commonRateLimiter(5,15),login)
-authrouter.post("/verify2FA",verify2FA)
-authrouter.post("/login",login)
+authrouter.post("/login",commonRateLimiter(5,15),login)
+authrouter.post("/verify2FA",verifyJWT,verify2FA)
 authrouter.post("/logout",verifyJWT,logout)
 authrouter.post("/refresh",refresh)
+
 authrouter.post("/password_reset",commonRateLimiter(5,15),request_password_reset)
 authrouter.post("/reset-password",reset_password)
+
 authrouter.post("/invalidate-all", verifyJWT, invalidateAllSessions);
 authrouter.post("/get2fasecret",verifyJWT,getTwoFASecret)
 
-authrouter.post("/request_verify",commonRateLimiter(5,15),request_email_verification)
-authrouter.post("/verify-email",verify_email)
+authrouter.post("/request_verify",commonRateLimiter(5,15),verifyJWT,request_email_verification)
+authrouter.post("/verify-email",verifyJWT,verify_email)
 
 //google oAuth
 authrouter.get("/google", passport.authenticate("google", {
