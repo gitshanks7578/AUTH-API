@@ -1,5 +1,5 @@
 import express from "express"
-import { login, registerUser,logout,refresh, request_password_reset, reset_password, request_email_verification, verify_email,invalidateAllSessions,verify2FA, getTwoFASecret, googleCallbackController} from "../controller/auth.controller.js"
+import { login, registerUser,logout,refresh, request_password_reset, reset_password, request_email_verification, verify_email,invalidateAllSessions,verify2FA, getTwoFASecret, googleCallbackController, google_verify_2fa} from "../controller/auth.controller.js"
 import { verifyJWT } from "../middlewares/verifyJWT.js"
 import { commonRateLimiter } from "../middlewares/rateLimit.js"
 import passport from "../config/passport.js"
@@ -31,5 +31,7 @@ authrouter.get("/google/callback", passport.authenticate("google", {
     session: false,
   }),
   googleCallbackController)
+
+authrouter.post("/google/verify-2fa",google_verify_2fa)
 
 export default authrouter

@@ -14,14 +14,20 @@ import { logAuditEvent } from "../utils/auditLogs.js";
 import speakeasy from "speakeasy";
 
 import { run2FA } from "../utils/2FA.js";
+import { LoginChallenge } from "../models/login_challenges.js";
+
+import { sendMailForEmail, sendMailForPassword } from "../utils/resend_email.js";
+
+function hash(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 
-import { sendMailForEmail,sendMailForPassword } from "../utils/resend_email.js";
 
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
-    if (!name || !email || !password || !role)
+    const { name, email, password } = req.body;
+    if (!name || !email || !password)
       throw new ApiError("all fields are required", 400);
     const existingUser = await user.findOne({ email });
     if (existingUser) throw new ApiError("user already exists", 409);
@@ -30,7 +36,7 @@ export const registerUser = async (req, res, next) => {
       name,
       email,
       password,
-      role,
+      role: "user",
       twoFASecret: speakeasy.generateSecret({ length: 20 }).base32, // auto-generate
       twoFAEnabled: false,
     });
@@ -48,7 +54,6 @@ export const registerUser = async (req, res, next) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        twoFA_secret: newUser.twoFASecret,
       },
       "user registered successfully",
       201,
@@ -64,6 +69,9 @@ export const getTwoFASecret = async (req, res, next) => {
     if (!existing_user) {
       throw new ApiError("user not found", 404)
     }
+    if(existing_user.twoFAEnabled){
+      throw new ApiError("cannot get secret 2fa already enabled",400)
+    }
     return apiResponse(res, { twofa_secret: existing_user.twoFASecret }, "secret provided successfully", 200)
   } catch (error) {
     next(error)
@@ -72,12 +80,13 @@ export const getTwoFASecret = async (req, res, next) => {
 
 export const verify2FA = async (req, res, next) => {
   try {
-    const { email, token } = req.body
-    if (!email || !token) {
-      throw new ApiError("email and token required", 400);
+    const { token } = req.body
+    const userid = req.USER.userID
+    if (!userid || !token) {
+      throw new ApiError("token required", 400);
     }
 
-    const existingUser = await user.findOne({ email });
+    const existingUser = await user.findById(userid);
     if (!existingUser) {
       throw new ApiError("user not found", 404);
     }
@@ -120,8 +129,8 @@ export const login = async (req, res, next) => {
       throw new ApiError("user doesnt exist,register first", 404);
     }
     //check password
-    if(existingUser.authProvider === "google"){
-      throw new ApiError("please sign in via google",400)
+    if (existingUser.authProvider === "google") {
+      throw new ApiError("please sign in via google", 400)
     }
     const isPasswordCorrect = await existingUser.comparePassword(password);
     if (!isPasswordCorrect) {
@@ -159,7 +168,7 @@ export const login = async (req, res, next) => {
     //create refreshtoken document
     const newRefreshToken = await refreshToken.create({
       session: newSession._id,
-      token: currentRefreshToken,
+      token: hash(currentRefreshToken),
       valid: true,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
@@ -233,9 +242,11 @@ export const refresh = async (req, res, next) => {
       throw new ApiError("refesh token doesnt exist || line 230", 400);
     const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
     const existing_session = await session.findById(decoded?.sessionID);
+
+    const hashedToken = hash(token);
     //checking if refresh token is valid
     const existing_refreshToken = await refreshToken.findOne({
-      token,
+      token: hashedToken,
       valid: true,
     });
     if (!existing_refreshToken || existing_refreshToken.valid === false) {
@@ -293,7 +304,7 @@ export const refresh = async (req, res, next) => {
     });
     const new_refresh_token = await refreshToken.create({
       session: decoded?.sessionID,
-      token: newRefreshToken,
+      token: hash(newRefreshToken),
       valid: true,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
@@ -344,8 +355,8 @@ export const request_password_reset = async (req, res, next) => {
       throw new ApiError("user doesnt exist", 400);
     }
 
-    if(existing_user.authProvider === "google") {
-      throw new ApiError("google auth provider | cant change password",400)
+    if (existing_user.authProvider === "google") {
+      throw new ApiError("google auth provider | cant change password", 400)
     }
     //after checks generate 6 digit otp
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -366,10 +377,10 @@ export const request_password_reset = async (req, res, next) => {
     //   subject: "Your OTP Code",
     //   htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     // });
-    const mailed = await sendMailForPassword(email,otp)
+    const mailed = await sendMailForPassword(email, otp)
     console.log(mailed)
-    if(!mailed) throw new ApiError("email sender failed",500)
-    
+    if (!mailed) throw new ApiError("email sender failed", 500)
+
     // const preview_link = result.preview_link
     await logAuditEvent({
       userId: existing_user._id,
@@ -435,10 +446,10 @@ export const request_email_verification = async (req, res, next) => {
 
     await existing_user.save();
     //send email
-  const mailed = await sendMailForEmail(email,otp)
+    const mailed = await sendMailForEmail(email, otp)
     console.log(mailed)
-    if(!mailed) throw new ApiError("email sender failed",500)
-    
+    if (!mailed) throw new ApiError("email sender failed", 500)
+
     await logAuditEvent({
       userId: existing_user._id,
       action: "EMAIL_VERIFICATION_REQUEST_SUCCESS",
@@ -446,7 +457,7 @@ export const request_email_verification = async (req, res, next) => {
       reason: "",
       req,
     });
-    return apiResponse(res, { }, "verification otp generated", 200); //DEV ONLY OTP RES
+    return apiResponse(res, {}, "verification otp generated", 200); //DEV ONLY OTP RES
   } catch (err) {
     next(err);
   }
@@ -529,13 +540,15 @@ export const invalidateAllSessions = async (req, res, next) => {
   }
 };
 
+
+
 export const googleCallbackController = async (req, res, next) => {
   try {
     const email = req.user.emails[0].value;
     const name = req.user.displayName;
-const googleId = req.user.id;
-const avatar = req.user.photos?.[0]?.value;
-
+    const googleId = req.user.id;
+    const avatar = req.user.photos?.[0]?.value;
+    // const {totp} = req.body;
     let existingUser =
       await user.findOne({ email });
 
@@ -552,8 +565,26 @@ const avatar = req.user.photos?.[0]?.value;
       });
     }
 
-    await run2FA({ user: existingUser, token: totp, req });
-     //create session
+    // await run2FA({ user: existingUser, token: totp, req });
+    //create session
+
+    if (existingUser.twoFAEnabled) {
+      await LoginChallenge.deleteMany({
+        userId: existingUser._id,
+        used: false,
+      });
+      const challengeId = crypto.randomUUID();
+
+      const login_Challenge = await LoginChallenge.create({
+        challengeId,
+        userId: existingUser._id,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+      })
+      return res.status(200).json({
+        challengeId, message: "2fa verification required"
+      });
+    }
+
     const newSession = await session.create({
       user: existingUser._id,
       userAgent: req.headers["user-agent"],
@@ -573,7 +604,7 @@ const avatar = req.user.photos?.[0]?.value;
     //create refreshtoken document
     const newRefreshToken = await refreshToken.create({
       session: newSession._id,
-      token: currentRefreshToken,
+      token: hash(currentRefreshToken),
       valid: true,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
@@ -605,7 +636,91 @@ const avatar = req.user.photos?.[0]?.value;
       "Login successful",
       200,
     );
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+export const google_verify_2fa = async (req, res, next) => {
+  try {
+    const { challengeId, totp } = req.body;
+    if (!challengeId || !totp) {
+      throw new ApiError("VALUES MISSING", 400);
+    }
+
+    const login_Challenge = await LoginChallenge.findOne({ challengeId,used : false })
+    if (!login_Challenge) {
+      throw new ApiError("challenge missing", 401);
+    }
+    if (login_Challenge.expiresAt < new Date()) {
+      throw new ApiError("Challenge expired", 400);
+    }
+    const existing_user = await user.findById(login_Challenge.userId)
+    if (!existing_user) {
+      throw new ApiError("User not found", 404);
+    }
     
+    await run2FA({ user: existing_user, token: totp, req });
+
+    login_Challenge.used = true;
+    await login_Challenge.save()
+
+    
+    const newSession = await session.create({
+      user: existing_user._id,
+      userAgent: req.headers["user-agent"],
+      valid: true,
+    });
+
+    //generate tokens
+    const accessToken = generateAccessToken({
+      sessionID: newSession._id,
+      userID: existing_user._id,
+      role: existing_user.role,
+    });
+    const currentRefreshToken = generateRefreshToken({
+      sessionID: newSession._id,
+    });
+
+    //create refreshtoken document
+    const newRefreshToken = await refreshToken.create({
+      session: newSession._id,
+      token: hash(currentRefreshToken),
+      valid: true,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    // set cookies
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
+    res.cookie("refreshToken", currentRefreshToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    //return response
+    await logAuditEvent({
+      userId: existing_user._id,
+      action: "LOGIN_SUCCESS",
+      success: true,
+      reason: "",
+      req,
+    });
+    return apiResponse(
+      res,
+      { currentRefreshToken, accessToken },
+      "Login successful",
+      200,
+    );
+
+
   } catch (error) {
     next(error)
   }
