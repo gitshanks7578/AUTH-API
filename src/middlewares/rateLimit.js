@@ -48,6 +48,9 @@ const createRateLimiter = ({
 }) => {
   const limiter = new RateLimiterRedis({
     storeClient: client,
+    // This app uses the `redis` (node-redis) package, not ioredis. Without
+    // this, rate-limiter-flexible attempts to call ioredis-only commands.
+    useRedisPackage: true,
     keyPrefix,
     points,
     duration,
