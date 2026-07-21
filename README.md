@@ -57,7 +57,7 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 
 ### Security & Monitoring
 
-* Rate limiting for sensitive endpoints
+* Redis-backed, endpoint-scoped rate limiting for sensitive endpoints
 * Structured audit logging for all auth events
 * IP address and user-agent tracking
 * Protection against invalid session reuse
@@ -69,6 +69,7 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 * **Runtime:** Node.js
 * **Framework:** Express.js
 * **Database:** MongoDB + Mongoose
+* **Rate limiting:** Redis + rate-limiter-flexible
 * **Authentication:** JWT, Sessions, Cookies
 * **OAuth:** Google OAuth 2.0 (Passport.js)
 * **Security:** bcrypt, refresh token rotation, TOTP (2FA), rate limiting
@@ -132,7 +133,7 @@ This system follows a **session-backed JWT model**:
 * OTPs are hashed before saving in DB
 * Refresh token reuse triggers session termination
 * Audit logs track all authentication events
-* Sensitive routes are rate-limited
+* Sensitive routes are rate-limited independently per IP or authenticated user
 
 ---
 
@@ -143,6 +144,7 @@ Create a `.env` file:
 ```env
 PORT=8000
 MONGODB_URI=your_mongodb_uri
+REDIS_URL=rediss://default:your_password@your-redis-host:6379
 
 ACCESS_TOKEN_SECRET=your_access_token_secret
 REFRESH_TOKEN_SECRET=your_refresh_token_secret
