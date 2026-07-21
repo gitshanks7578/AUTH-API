@@ -60,9 +60,18 @@ const createRateLimiter = ({
       await limiter.consume(key);
       return next();
     } catch (rateLimiterRes) {
+      // A rejected consume has rate-limit metadata. Connection and Redis errors
+      // do not, and must not be presented to clients as a 429 response.
+      if (!rateLimiterRes || typeof rateLimiterRes.msBeforeNext !== "number") {
+        const error = new Error("Rate-limit service is unavailable");
+        error.statusCode = 503;
+        error.cause = rateLimiterRes;
+        return next(error);
+      }
+
       try {
         await logAuditEvent({
-          userId: req.USER.userID || null,
+          userId: req.USER?.userID || null,
           action: "RATE_LIMIT_HIT",
           success: false,
           reason: `Exceeded ${points} requests in ${duration} seconds`,
@@ -86,7 +95,8 @@ export const ipRateLimiter = (points, duration) =>
     points,
     duration,
     keyPrefix: "ip_limit",
-    keyGenerator: (req) => req.ip,
+    // Keep each public endpoint in its own bucket for a given IP address.
+    keyGenerator: (req) => `${req.ip}:${req.baseUrl}${req.path}`,
   });
 
 export const userRateLimiter = (points, duration) =>
@@ -94,5 +104,7 @@ export const userRateLimiter = (points, duration) =>
     points,
     duration,
     keyPrefix: "user_limit",
-    keyGenerator: (req) => req.USER.userID.toString(),
+    // Keep each protected endpoint in its own bucket for a given user.
+    keyGenerator: (req) =>
+      `${req.USER.userID.toString()}:${req.baseUrl}${req.path}`,
   });
