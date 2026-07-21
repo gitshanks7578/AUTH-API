@@ -1,6 +1,6 @@
 # Auth API
 
-A production-style authentication backend built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
+An authentication API built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-black?style=for-the-badge&logo=express&logoColor=white)
@@ -10,9 +10,7 @@ A production-style authentication backend built with **Node.js**, **Express**, *
 ![2FA](https://img.shields.io/badge/2FA-TOTP-orange?style=for-the-badge)
 ![Security](https://img.shields.io/badge/Security-Implemented-red?style=for-the-badge)
 
-This system implements modern authentication patterns including **session-based JWT management, refresh token rotation, Google OAuth, two-factor authentication (2FA), email verification, password recovery, and audit logging**.
-
-It is designed to reflect real-world backend security architecture rather than a basic login demo.
+It implements **session-backed JWTs, refresh-token rotation, Google OAuth, TOTP 2FA, email verification, password recovery, and audit logging**.
 
 api link : https://auth-api-yncw.onrender.com
 
@@ -26,14 +24,14 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 
 * Email/password registration and login
 * Secure password hashing using `bcrypt`
-* JWT-based authentication (access + refresh tokens)
-* HTTP-only cookie-based token storage
+* JWT-based authentication with access and refresh tokens
+* Tokens set in HTTP-only cookies and returned in successful authentication responses
 
 ### Session & Token Security
 
 * Session tracking for every login
 * Refresh token rotation
-* Refresh token reuse detection (token theft protection)
+* Refresh token reuse detection that invalidates the affected session
 * Global logout via session invalidation
 * Multi-session support per user
 
@@ -46,19 +44,19 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 ### Two-Factor Authentication (2FA)
 
 * TOTP-based authentication using `speakeasy`
-* Optional per-user activation
+* Per-user activation after TOTP verification
 * Secure secret generation and verification
 
 ### Account Recovery
 
 * Password reset via OTP (hashed storage)
 * Email verification via OTP 
-* Time-limited OTP validation
+* Hashed OTPs with a 10-minute expiry
 
 ### Security & Monitoring
 
 * Redis-backed, endpoint-scoped rate limiting for sensitive endpoints
-* Structured audit logging for all auth events
+* Audit logging for registration, login, token refresh, recovery, and rate-limit events
 * IP address and user-agent tracking
 * Protection against invalid session reuse
 
@@ -73,7 +71,7 @@ oAuth test link : https://authapi-oauth-test.onrender.com
 * **Authentication:** JWT, Sessions, Cookies
 * **OAuth:** Google OAuth 2.0 (Passport.js)
 * **Security:** bcrypt, refresh token rotation, TOTP (2FA), rate limiting
-* **Email Service:** Nodemailer (Ethereal for testing)
+* **Email Service:** Resend
 
 ---
 
@@ -115,6 +113,7 @@ Base URL:
 | POST   | `/verify-email`    | Verify email using OTP                    |
 | GET    | `/google`          | Initiate Google OAuth login               |
 | GET    | `/google/callback` | Google OAuth callback handler             |
+| POST   | `/google/verify-2fa` | Complete Google login with a 2FA challenge |
 
 ---
 
@@ -122,17 +121,17 @@ Base URL:
 
 This system follows a **session-backed JWT model**:
 
-* Access tokens are short-lived
+* Access tokens expire after two hours
 * Refresh tokens are stored in MongoDB and rotated on every use
 * Each login creates a unique session record
-* Token reuse detection immediately invalidates compromised sessions
+* Refresh-token reuse invalidates the session linked to that token
 
 ### Protection Mechanisms
 
 * Passwords are hashed before storage
 * OTPs are hashed before saving in DB
 * Refresh token reuse triggers session termination
-* Audit logs track all authentication events
+* Audit logs track key authentication and security events
 * Sensitive routes are rate-limited independently per IP or authenticated user
 
 ---
