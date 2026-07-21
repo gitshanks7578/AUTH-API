@@ -1,8 +1,9 @@
 import mongoose from "mongoose"
-
+import {client} from "../utils/redis.js"
 export const dbconnect = async (req,res)=>{
     try {
         const connectionInstance = await mongoose.connect(`${process.env.MONGODB_URI}`)
+     
         console.log("db connected successfully")
     } catch (err) {
         console.log(`db connection failed || message : ${err.message}`)
