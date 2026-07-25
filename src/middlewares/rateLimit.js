@@ -9,6 +9,9 @@ const createRateLimiter = ({
   keyPrefix,
   keyGenerator,
 }) => {
+  if(process.env.NODE_ENV === "test"){
+     return (req, res, next) => next();
+  }
   const limiter = new RateLimiterRedis({
     storeClient: client,
     // This app uses the `redis` (node-redis) package, not ioredis. Without

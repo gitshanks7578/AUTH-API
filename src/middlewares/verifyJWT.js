@@ -9,7 +9,12 @@ export const verifyJWT = async (req,res,next)=>{
         if(!token) 
             throw new ApiError("token missing || not authorized",401)
         // return res.status(200).json({message : `${token}`})
-        const decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
+    
+        
+         const decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
+            
+       
+        
         const existingSession = await session.findById(decoded.sessionID)
         if(!existingSession || !existingSession.valid)
             throw new ApiError("session expired || line 14",400)

@@ -240,7 +240,19 @@ export const refresh = async (req, res, next) => {
       req.header("authorization")?.replace("Bearer ", "");
     if (!token)
       throw new ApiError("refesh token doesnt exist || line 230", 400);
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+      
+    } catch (error) {
+      console.log("INSIDE ERROR CATCH")
+      console.log(error)
+      throw new ApiError("invalid token",401)
+    }
+    // if(!decoded){
+    //   throw new ApiError("invalid refreshtoken",401)
+    // }
     const existing_session = await session.findById(decoded?.sessionID);
 
     const hashedToken = hash(token);
