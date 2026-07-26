@@ -9,9 +9,13 @@ export const verifyJWT = async (req,res,next)=>{
         if(!token) 
             throw new ApiError("token missing || not authorized",401)
         // return res.status(200).json({message : `${token}`})
-    
-        
-         const decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
+        let decoded;
+        try {
+            
+            decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
+        } catch (error) {
+            throw new ApiError("user is unauthenicated",401)
+        }
             
        
         
