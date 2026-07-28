@@ -515,7 +515,7 @@ export const verify_email = async (req, res, next) => {
 export const invalidateAllSessions = async (req, res, next) => {
   try {
     const userId = req.USER.userID;
-
+  
     // Find all valid sessions of the user
     const userSessions = await session.find({ user: userId, valid: true }).select("_id");
 

@@ -5,7 +5,7 @@ import mongoose from "mongoose"
 import { user } from "../src/models/user.model.js"
 import { session } from "../src/models/session.model.js"
 import { refreshToken } from "../src/models/refreshToken.model.js"
-
+import speakeasy from "speakeasy";
 
 import bcrypt from "bcrypt"
 import { refresh } from "../src/controller/auth.controller.js"
@@ -690,3 +690,158 @@ describe("PASSWORD RESET REQUEST", () => {
 
 })
 
+describe("VERIFY_2FA",()=>{
+    let accessToken;
+    beforeEach(async()=>{
+        await refreshToken.deleteMany({})
+        await session.deleteMany({})
+        await user.deleteMany({})
+
+        await request(app)
+            .post("/api/v1/auth/register")
+            .send({
+                name: "test-user",
+                email: "test@example.com",
+                password: "hello"
+            })
+        const response = await request(app)
+        .post("/api/v1/auth/login")
+        .send({
+            email : "test@example.com",
+            password : "hello"
+        })
+        
+        accessToken = response.body.data.accessToken
+    })
+    test("successful verification of generated code",async()=>{
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding : "base32"
+        })
+        const response = await request(app)
+        .post("/api/v1/auth/verify2FA")
+        .send({
+            token : otp
+        })
+        .set("Authorization",`Bearer ${accessToken}`)
+
+        expect(response.status).toBe(200)
+        expect(response.body.message).toBe("2FA enabled successfully")
+    })
+    test("accesstoken missing",async()=>{
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding : "base32"
+        })
+        const response = await request(app)
+        .post("/api/v1/auth/verify2FA")
+        .send({
+            token : otp
+        })
+
+
+        expect(response.status).toBe(401);
+        expect(response.body.message).toBe("token missing || not authorized")
+    })
+    test("missing token body",async()=>{
+         const response = await request(app)
+        .post("/api/v1/auth/verify2FA")
+        .send({
+            token : ""
+        })
+        .set("Authorization",`Bearer ${accessToken}`)
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("token required");
+    })
+    test("user attached to JWT is missing",async()=>{
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding : "base32"
+        })
+        await user.deleteMany({})
+
+        const response = await request(app)
+        .post("/api/v1/auth/verify2FA")
+        .send({
+            token : otp
+        })
+        .set("Authorization",`Bearer ${accessToken}`)
+
+        expect(response.status).toBe(404)
+        expect(response.body.message).toBe("user not found")
+
+    })
+    test("check database if twoFAEnabled = true after response",async()=>{
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding : "base32"
+        }) 
+        const response = await request(app)
+        .post("/api/v1/auth/verify2FA")
+        .send({
+            token : otp
+        })
+        .set("Authorization",`Bearer ${accessToken}`)
+
+        const updateduser = await user.findOne()
+        expect(updateduser.twoFAEnabled).toBe(true)
+    })
+
+
+})
+
+
+describe("INVALIDATE_ALL_SESSIONS",()=>{
+     let accessToken;
+    beforeEach(async()=>{
+        await refreshToken.deleteMany({})
+        await session.deleteMany({})
+        await user.deleteMany({})
+
+        await request(app)
+            .post("/api/v1/auth/register")
+            .send({
+                name: "test-user",
+                email: "test@example.com",
+                password: "hello"
+            })
+        const response = await request(app)
+        .post("/api/v1/auth/login")
+        .send({
+            email : "test@example.com",
+            password : "hello"
+        })
+        
+        accessToken = response.body.data.accessToken
+    })
+
+    test("successful invalidation",async()=>{
+        const response = await request(app)
+        .post("/api/v1/auth/invalidate-all")
+        .set("Authorization",`Bearer ${accessToken}`)
+
+        const existing_session = await session.findOne()
+        expect(existing_session.valid).toBe(false)
+        expect(response.status).toBe(200)
+        expect(response.body.message).toBe("All sessions invalidated successfully")
+
+    })
+    test("missing accesstoken",async()=>{
+        const response = await request(app)
+        .post("/api/v1/auth/invalidate-all")
+        // .set("Authorization",`Bearer ${accessToken}`)
+        expect(response.status).toBe(401)
+    
+
+    })
+   
+})
