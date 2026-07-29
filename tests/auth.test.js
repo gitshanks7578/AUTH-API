@@ -6,7 +6,7 @@ import { user } from "../src/models/user.model.js"
 import { session } from "../src/models/session.model.js"
 import { refreshToken } from "../src/models/refreshToken.model.js"
 import speakeasy from "speakeasy";
-
+import crypto from "crypto"
 import bcrypt from "bcrypt"
 import { refresh } from "../src/controller/auth.controller.js"
 
@@ -605,6 +605,162 @@ describe("REQUEST EMAIL VERIFICATION", () => {
 })
 
 
+describe("VERIFY_2FA", () => {
+    let accessToken;
+    beforeEach(async () => {
+        await refreshToken.deleteMany({})
+        await session.deleteMany({})
+        await user.deleteMany({})
+
+        await request(app)
+            .post("/api/v1/auth/register")
+            .send({
+                name: "test-user",
+                email: "test@example.com",
+                password: "hello"
+            })
+        const response = await request(app)
+            .post("/api/v1/auth/login")
+            .send({
+                email: "test@example.com",
+                password: "hello"
+            })
+
+        accessToken = response.body.data.accessToken
+    })
+    test("successful verification of generated code", async () => {
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding: "base32"
+        })
+        const response = await request(app)
+            .post("/api/v1/auth/verify2FA")
+            .send({
+                token: otp
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        expect(response.status).toBe(200)
+        expect(response.body.message).toBe("2FA enabled successfully")
+    })
+    test("accesstoken missing", async () => {
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding: "base32"
+        })
+        const response = await request(app)
+            .post("/api/v1/auth/verify2FA")
+            .send({
+                token: otp
+            })
+
+
+        expect(response.status).toBe(401);
+        expect(response.body.message).toBe("token missing || not authorized")
+    })
+    test("missing token body", async () => {
+        const response = await request(app)
+            .post("/api/v1/auth/verify2FA")
+            .send({
+                token: ""
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("token required");
+    })
+    test("user attached to JWT is missing", async () => {
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding: "base32"
+        })
+        await user.deleteMany({})
+
+        const response = await request(app)
+            .post("/api/v1/auth/verify2FA")
+            .send({
+                token: otp
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        expect(response.status).toBe(404)
+        expect(response.body.message).toBe("user not found")
+
+    })
+    test("check database if twoFAEnabled = true after response", async () => {
+        const existing_user = await user.findOne()
+        const secret = existing_user.twoFASecret
+        const otp = speakeasy.totp({
+            secret,
+            encoding: "base32"
+        })
+        const response = await request(app)
+            .post("/api/v1/auth/verify2FA")
+            .send({
+                token: otp
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        const updateduser = await user.findOne()
+        expect(updateduser.twoFAEnabled).toBe(true)
+    })
+
+
+})
+
+
+describe("INVALIDATE_ALL_SESSIONS", () => {
+    let accessToken;
+    beforeEach(async () => {
+        await refreshToken.deleteMany({})
+        await session.deleteMany({})
+        await user.deleteMany({})
+
+        await request(app)
+            .post("/api/v1/auth/register")
+            .send({
+                name: "test-user",
+                email: "test@example.com",
+                password: "hello"
+            })
+        const response = await request(app)
+            .post("/api/v1/auth/login")
+            .send({
+                email: "test@example.com",
+                password: "hello"
+            })
+
+        accessToken = response.body.data.accessToken
+    })
+
+    test("successful invalidation", async () => {
+        const response = await request(app)
+            .post("/api/v1/auth/invalidate-all")
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        const existing_session = await session.findOne()
+        expect(existing_session.valid).toBe(false)
+        expect(response.status).toBe(200)
+        expect(response.body.message).toBe("All sessions invalidated successfully")
+
+    })
+    test("missing accesstoken", async () => {
+        const response = await request(app)
+            .post("/api/v1/auth/invalidate-all")
+        // .set("Authorization",`Bearer ${accessToken}`)
+        expect(response.status).toBe(401)
+
+
+    })
+
+})
+
 describe("PASSWORD RESET REQUEST", () => {
     beforeEach(async () => {
         await refreshToken.deleteMany({})
@@ -657,7 +813,7 @@ describe("PASSWORD RESET REQUEST", () => {
         expect(response.body.message).toBe("user doesnt exist");
     })
 
-    test("if google auth provider is used",async()=>{
+    test("if google auth provider is used", async () => {
         const existingUser = await user.findOne()
         existingUser.authProvider = "google"
         await existingUser.save();
@@ -668,13 +824,13 @@ describe("PASSWORD RESET REQUEST", () => {
                 email: "test@example.com"
             })
 
-        expect(response.status).toBe(400) 
+        expect(response.status).toBe(400)
         expect(response.body.message).toBe("google auth provider | cant change password")
 
     })
 
-    test("hashed otp and expiry is defined after generation",async()=>{
-        
+    test("hashed otp and expiry is defined after generation", async () => {
+
         await request(app)
             .post("/api/v1/auth/password_reset")
             .send({
@@ -685,14 +841,139 @@ describe("PASSWORD RESET REQUEST", () => {
 
         expect(existing_user.passwordResetOTP).toBeDefined()
         expect(existing_user.passwordResetOTPExpires).toBeDefined()
-        
+
     })
 
 })
 
-describe("VERIFY_2FA",()=>{
+describe("RESET PASSWORD", () => {
+    beforeEach(async () => {
+        await refreshToken.deleteMany({})
+        await session.deleteMany({})
+        await user.deleteMany({})
+
+        await request(app)
+            .post("/api/v1/auth/register")
+            .send({
+                name: "test-user",
+                email: "test@example.com",
+                password: "hello"
+            })
+
+    })
+
+    test("password reset successfully", async () => {
+        const existingUser = await user.findOne()
+        const otp = "123456"
+        let hashedotp = crypto.createHash("sha256").update(otp).digest("hex")
+        existingUser.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000;
+        existingUser.passwordResetOTP = hashedotp
+        await existingUser.save()
+
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "test@example.com",
+                otp: otp,
+                newPassword: "hello123"
+            })
+        const updateUser = await user.findOne()
+        const passwordmatch = await bcrypt.compare("hello123", updateUser.password)
+
+        expect(passwordmatch).toBe(true)
+        expect(updateUser.passwordResetOTP).toBeUndefined();
+        expect(updateUser.passwordResetOTPExpires).toBeUndefined();
+        expect(response.status).toBe(200)
+        expect(response.body.message).toBe("password reset successfully")
+
+    })
+
+    test("empty field check", async () => {
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "",
+                otp: "",
+                newPassword: "hello123"
+            })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("all fields required")
+    })
+
+    test("user linked with email given doesnt exist", async () => {
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "test2@example.com",
+                otp: "123456",
+                newPassword: "hello123"
+            })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("user not found with the given email")
+    })
+
+    test("expired otp", async () => {
+        const time = Date.now() - 1000
+        const existinguser = await user.findOne()
+        existinguser.passwordResetOTPExpires = time
+        await existinguser.save()
+
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "test@example.com",
+                otp: "123456",
+                newPassword: "hello123"
+            })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("otp expired")
+
+    })
+
+    test("otp invalid", async () => {
+        const existinguser = await user.findOne()
+        const time = Date.now() + 10 * 60 * 1000
+        const otp = crypto.createHash("sha256").update("123456").digest("hex")
+        existinguser.passwordResetOTP = otp;
+        existinguser.passwordResetOTPExpires = time;
+        await existinguser.save()
+
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "test@example.com",
+                otp: "234567",
+                newPassword: "hellow1234"
+            })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("otp invalid")
+    })
+
+    test("OTP set undefined", async () => {
+        const existinguser = await user.findOne()
+        existinguser.passwordResetOTP = undefined
+        existinguser.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000
+        await existinguser.save()
+        const response = await request(app)
+            .post("/api/v1/auth/reset-password")
+            .send({
+                email: "test@example.com",
+                otp: "234567",
+                newPassword: "hellow1234"
+            })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("otp invalid")
+    })
+})
+
+describe("VERIFY EMAIL", () => {
     let accessToken;
-    beforeEach(async()=>{
+    beforeEach(async () => {
         await refreshToken.deleteMany({})
         await session.deleteMany({})
         await user.deleteMany({})
@@ -705,143 +986,116 @@ describe("VERIFY_2FA",()=>{
                 password: "hello"
             })
         const response = await request(app)
-        .post("/api/v1/auth/login")
-        .send({
-            email : "test@example.com",
-            password : "hello"
-        })
-        
+            .post("/api/v1/auth/login")
+            .send({
+                email: "test@example.com",
+                password: "hello"
+            })
+
         accessToken = response.body.data.accessToken
     })
-    test("successful verification of generated code",async()=>{
-        const existing_user = await user.findOne()
-        const secret = existing_user.twoFASecret
-        const otp = speakeasy.totp({
-            secret,
-            encoding : "base32"
-        })
-        const response = await request(app)
-        .post("/api/v1/auth/verify2FA")
-        .send({
-            token : otp
-        })
-        .set("Authorization",`Bearer ${accessToken}`)
+    test("email verification successful", async () => {
+        const existinguser = await user.findOne()
+        const otp = crypto.createHash("sha256").update("123456").digest("hex")
+        const time = Date.now() + 10 * 60 * 1000
+        existinguser.emailVerificationOTP = otp;
+        existinguser.emailVerificationOTPExpires = time;
+        await existinguser.save()
 
+        const response = await request(app)
+            .post("/api/v1/auth/verify-email")
+            .send({
+                email: "test@example.com",
+                otp: "123456"
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        const updateduser = await user.findOne()
+        expect(updateduser.isEmailVerified).toBe(true)
+        expect(updateduser.emailVerificationOTP).toBeUndefined()
+        expect(updateduser.emailVerificationOTPExpires).toBeUndefined()
         expect(response.status).toBe(200)
-        expect(response.body.message).toBe("2FA enabled successfully")
+        expect(response.body.message).toBe("email verified successfully")
     })
-    test("accesstoken missing",async()=>{
-        const existing_user = await user.findOne()
-        const secret = existing_user.twoFASecret
-        const otp = speakeasy.totp({
-            secret,
-            encoding : "base32"
-        })
+
+    test("missing details", async () => {
         const response = await request(app)
-        .post("/api/v1/auth/verify2FA")
-        .send({
-            token : otp
-        })
-
-
-        expect(response.status).toBe(401);
-        expect(response.body.message).toBe("token missing || not authorized")
-    })
-    test("missing token body",async()=>{
-         const response = await request(app)
-        .post("/api/v1/auth/verify2FA")
-        .send({
-            token : ""
-        })
-        .set("Authorization",`Bearer ${accessToken}`)
+            .post("/api/v1/auth/verify-email")
+            .send({
+                email: "",
+                otp: ""
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
 
         expect(response.status).toBe(400)
-        expect(response.body.message).toBe("token required");
+        expect(response.body.message).toBe("email and otp required")
     })
-    test("user attached to JWT is missing",async()=>{
-        const existing_user = await user.findOne()
-        const secret = existing_user.twoFASecret
-        const otp = speakeasy.totp({
-            secret,
-            encoding : "base32"
-        })
-        await user.deleteMany({})
-
+    test("user linked with email given doesnt exist", async () => {
         const response = await request(app)
-        .post("/api/v1/auth/verify2FA")
-        .send({
-            token : otp
-        })
-        .set("Authorization",`Bearer ${accessToken}`)
+            .post("/api/v1/auth/verify-email")
+            .send({
+                email: "test2@example.com",
+                otp: "123456",
+
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
 
         expect(response.status).toBe(404)
         expect(response.body.message).toBe("user not found")
-
     })
-    test("check database if twoFAEnabled = true after response",async()=>{
-        const existing_user = await user.findOne()
-        const secret = existing_user.twoFASecret
-        const otp = speakeasy.totp({
-            secret,
-            encoding : "base32"
-        }) 
+    test("expired otp", async () => {
+        const time = Date.now() - 1000
+        const existinguser = await user.findOne()
+        existinguser.emailVerificationOTPExpires = time
+        await existinguser.save()
+
         const response = await request(app)
-        .post("/api/v1/auth/verify2FA")
-        .send({
-            token : otp
-        })
-        .set("Authorization",`Bearer ${accessToken}`)
-
-        const updateduser = await user.findOne()
-        expect(updateduser.twoFAEnabled).toBe(true)
-    })
-
-
-})
-
-
-describe("INVALIDATE_ALL_SESSIONS",()=>{
-     let accessToken;
-    beforeEach(async()=>{
-        await refreshToken.deleteMany({})
-        await session.deleteMany({})
-        await user.deleteMany({})
-
-        await request(app)
-            .post("/api/v1/auth/register")
+            .post("/api/v1/auth/verify-email")
             .send({
-                name: "test-user",
                 email: "test@example.com",
-                password: "hello"
+                otp: "123456",
+
             })
-        const response = await request(app)
-        .post("/api/v1/auth/login")
-        .send({
-            email : "test@example.com",
-            password : "hello"
-        })
-        
-        accessToken = response.body.data.accessToken
-    })
+            .set("Authorization", `Bearer ${accessToken}`)
 
-    test("successful invalidation",async()=>{
-        const response = await request(app)
-        .post("/api/v1/auth/invalidate-all")
-        .set("Authorization",`Bearer ${accessToken}`)
-
-        const existing_session = await session.findOne()
-        expect(existing_session.valid).toBe(false)
-        expect(response.status).toBe(200)
-        expect(response.body.message).toBe("All sessions invalidated successfully")
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("otp expired or invalid")
 
     })
-    test("missing accesstoken",async()=>{
+    test("OTP set undefined", async () => {
+        const existinguser = await user.findOne()
+        existinguser.emailVerificationOTP = undefined
+        existinguser.emailVerificationOTPExpires = Date.now() + 10 * 60 * 1000
+        await existinguser.save()
         const response = await request(app)
-        .post("/api/v1/auth/invalidate-all")
-        // .set("Authorization",`Bearer ${accessToken}`)
-        expect(response.status).toBe(401)
-    
+            .post("/api/v1/auth/verify-email")
+            .send({
+                email: "test@example.com",
+                otp: "234567",
 
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("otp expired or invalid")
     })
-   
+    test("incorrect otp given", async () => {
+        const existinguser = await user.findOne()
+        const otp = crypto.createHash("sha256").update("123456").digest("hex")
+        const time = Date.now() + 10 * 60 * 1000
+        existinguser.emailVerificationOTP = otp;
+        existinguser.emailVerificationOTPExpires = time;
+        await existinguser.save()
+
+        const response = await request(app)
+            .post("/api/v1/auth/verify-email")
+            .send({
+                email: "test@example.com",
+                otp: "234567"
+            })
+            .set("Authorization", `Bearer ${accessToken}`)
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toBe("invalid otp")
+    })
 })

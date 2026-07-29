@@ -383,12 +383,7 @@ export const request_password_reset = async (req, res, next) => {
     existing_user.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000;
     await existing_user.save();
 
-    //send email
-    // const result = await sendEmail({
-    //   to: email,
-    //   subject: "Your OTP Code",
-    //   htmlContent: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    // });
+    
     const mailed = await sendMailForPassword(email, otp)
     console.log(mailed)
     if (!mailed) throw new ApiError("email sender failed", 500)
@@ -421,7 +416,7 @@ export const reset_password = async (req, res, next) => {
     if (existing_user.passwordResetOTPExpires < Date.now())
       throw new ApiError("otp expired", 400);
     if (!existing_user.passwordResetOTP)
-      throw new ApiError("otp  invalid", 400);
+      throw new ApiError("otp invalid", 400);
 
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
