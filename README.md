@@ -2,13 +2,14 @@
 
 An authentication API built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
 
-[![CI/CD](https://github.com/gitshanks7578/AUTH-API/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/gitshanks7578/AUTH-API/actions/workflows/ci-cd.yml)
+
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-black?style=for-the-badge&logo=express&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/gitshanks7578/AUTH-API/ci-cd.yml?label=CI%2FCD&color=black)
 ![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-Implemented-red?style=for-the-badge)
