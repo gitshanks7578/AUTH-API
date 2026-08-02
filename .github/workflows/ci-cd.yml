@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
-      MONGODB_URI: ${{ secrets.MONGODB_URI_TEST }}
-      REDIS_URL: ${{ secrets.REDIS_URL_TEST }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
       ACCESS_TOKEN_SECRET: ci-access-token-secret
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret
       GOOGLE_2FA_CHALLENGE_SECRET: ci-google-2fa-secret
