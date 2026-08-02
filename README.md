@@ -9,7 +9,7 @@ An authentication API built with **Node.js**, **Express**, **MongoDB**, and **JW
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/gitshanks7578/AUTH-API/ci-cd.yml?style=for-the-badge&label=CI%2FCD&logo=githubactions&logoColor=white&color=black)](https://github.com/gitshanks7578/AUTH-API/actions/workflows/ci-cd.yml)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-black?style=for-the-badge&logoColor=white)
 ![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-Implemented-red?style=for-the-badge)
