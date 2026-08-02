@@ -2,12 +2,15 @@
 
 An authentication API built with **Node.js**, **Express**, **MongoDB**, and **JWT**.
 
-![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
+[![CI/CD](https://github.com/gitshanks7578/AUTH-API/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/gitshanks7578/AUTH-API/actions/workflows/ci-cd.yml)
+![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-black?style=for-the-badge&logo=express&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
-![Passport](https://img.shields.io/badge/OAuth_Passport-2C3E50?style=for-the-badge)
-![2FA](https://img.shields.io/badge/2FA-TOTP-orange?style=for-the-badge)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-Implemented-red?style=for-the-badge)
 
 It implements **session-backed JWTs, refresh-token rotation, Google OAuth, TOTP 2FA, email verification, password recovery, and audit logging**.
@@ -40,8 +43,12 @@ successful push to `main` then calls Render using the repository secret
 `RENDER_DEPLOY_HOOK_URL`. Create a deploy hook in your Render service and add
 its URL under **GitHub → Settings → Secrets and variables → Actions**. Set the
 Render service's auto-deploy mode to **Off** to avoid a second deployment from
-the same push. The test job uses the cloud-service secrets `MONGODB_URI_TEST`
-and `REDIS_URL_TEST`; use a separate test database rather than production.
+the same push.
+
+The CI test job uses GitHub Actions secrets `MONGODB_URI` and `REDIS_URL`.
+Point them to isolated cloud test services, never the production database or
+Redis instance. It also uses placeholder OAuth and email values because those
+external flows are not exercised by the automated tests.
 
 ---
 
@@ -178,9 +185,15 @@ REFRESH_TOKEN_SECRET=your_refresh_token_secret
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=your_callback_url
+GOOGLE_2FA_CHALLENGE_SECRET=your_long_random_secret
 RESEND_API_KEY=your_api_key
 NODE_ENV=development
 ```
+
+For Render, add the same variables in the service's **Environment** settings.
+Render supplies `PORT`; do not hard-code it in the service configuration. Use
+`NODE_ENV=production` in Render and ensure the MongoDB Atlas and hosted Redis
+providers allow connections from Render.
 
 ---
 
