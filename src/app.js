@@ -10,6 +10,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Auth API is healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
 //routes
 app.use("/api/v1/auth", authrouter);
 

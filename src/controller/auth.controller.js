@@ -116,6 +116,7 @@ export const verify2FA = async (req, res, next) => {
 export const login = async (req, res, next) => {
   try {
     const { email, password, totp } = req.body;
+    // console.log(req.body);
     if (!email || !password) throw new ApiError("all fields required", 400);
     const existingUser = await user.findOne({ email });
     // const existingUser = await user.findOne({ email }).select("-password");

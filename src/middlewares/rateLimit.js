@@ -9,7 +9,7 @@ const createRateLimiter = ({
   keyPrefix,
   keyGenerator,
 }) => {
-  if(process.env.NODE_ENV === "test"){
+  if(process.env.NODE_ENV === "test" || process.env.NODE_ENV === "benchmark"){
      return (req, res, next) => next();
   }
   const limiter = new RateLimiterRedis({

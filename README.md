@@ -16,6 +16,33 @@ api link : https://auth-api-yncw.onrender.com
 
 oAuth test link : https://authapi-oauth-test.onrender.com
 
+## Local Docker setup
+
+Start the API in a container:
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:8000`. Docker Compose reads all
+application secrets, including the MongoDB Atlas and hosted Redis URLs, from
+`.env`.
+
+## Quality checks and deployment
+
+```bash
+npm run lint
+npm test
+```
+
+GitHub Actions runs both checks for pull requests and pushes to `main`. A
+successful push to `main` then calls Render using the repository secret
+`RENDER_DEPLOY_HOOK_URL`. Create a deploy hook in your Render service and add
+its URL under **GitHub → Settings → Secrets and variables → Actions**. Set the
+Render service's auto-deploy mode to **Off** to avoid a second deployment from
+the same push. The test job uses the cloud-service secrets `MONGODB_URI_TEST`
+and `REDIS_URL_TEST`; use a separate test database rather than production.
+
 ---
 
 ## Key Features
