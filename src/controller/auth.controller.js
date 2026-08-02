@@ -616,7 +616,7 @@ export const googleCallbackController = async (req, res, next) => {
       valid: true,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
-    // set cookies
+    // set cookies//
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       sameSite: "strict",
